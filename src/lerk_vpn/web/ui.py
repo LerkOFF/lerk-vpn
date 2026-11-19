@@ -127,6 +127,11 @@ def button_form(ctx, action: str, label: str, fields: dict | None = None, cls: s
     return f'<form class="inline" method="post" action="/do/{esc(action)}"><input type="hidden" name="_csrf" value="{esc(ctx.csrf)}">{hidden}<button class="{cls}" type="submit"{conf}>{esc(label)}</button></form>'
 
 
+def btnrow(*parts: str) -> str:
+    """Ряд кнопок одного размера с ровными отступами."""
+    return '<div class="btnrow">' + "".join(parts) + "</div>"
+
+
 def period_tabs(page: str, current: str, **params) -> str:
     tabs = []
     for key, label in KEYS:

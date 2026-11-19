@@ -15,7 +15,7 @@ from ..xraycfg import client_links
 from . import data, geo as geomod, happ, qr
 from .periods import MSK, KEYS, fmt_ago, fmt_bytes, fmt_dt, get_period
 from .settings import BY_KEY, FIELDS, GROUPS
-from .ui import (badge, bars, block, button_form, cmp_html, esc, form, hbar, layout, pager, period_tabs,
+from .ui import (badge, bars, block, btnrow, button_form, cmp_html, esc, form, hbar, layout, pager, period_tabs,
                  sparkline, table, tile, url)
 
 
@@ -235,9 +235,11 @@ def client_page(ctx) -> str:
     chain_checks = "".join(f'<label><input type="checkbox" name="chains" value="{esc(k)}"{" checked" if k in client.chains else ""}> {esc(ch.title)} ({esc(k)})</label>' for k, ch in topo.chains.items())
     chains_form = form(ctx, "client_chains", f'<input type="hidden" name="name" value="{esc(name)}"><div class="checks">{chain_checks}</div><div><button class="btn ghost" type="submit">Сохранить каскады</button></div>')
     actions = (
-        button_form(ctx, "client_toggle", "Выключить" if client.enabled else "Включить", {"name": name})
-        + " " + button_form(ctx, "client_rotate", "Выпустить новые ключи", {"name": name}, confirm="Старые ссылки перестанут работать. Нажмите ещё раз")
-        + " " + button_form(ctx, "client_delete", "Удалить клиента", {"name": name}, cls="btn danger sm", confirm="Удалить насовсем? Нажмите ещё раз")
+        btnrow(
+            button_form(ctx, "client_toggle", "Выключить" if client.enabled else "Включить", {"name": name}, cls="btn ghost"),
+            button_form(ctx, "client_rotate", "Выпустить новые ключи", {"name": name}, cls="btn ghost", confirm="Старые ссылки перестанут работать. Нажмите ещё раз"),
+            button_form(ctx, "client_delete", "Удалить клиента", {"name": name}, cls="btn danger", confirm="Удалить насовсем? Нажмите ещё раз"),
+        )
     )
     rename = form(
         ctx, "client_rename",
@@ -442,9 +444,11 @@ def servers_page(ctx) -> str:
             + "</details>"
         )
     ops = (
-        button_form(ctx, "apply", "Применить на серверах", cls="btn")
-        + " " + button_form(ctx, "verify", "Проверить каскады")
-        + " " + button_form(ctx, "refresh", "Обновить состояние")
+        btnrow(
+            button_form(ctx, "apply", "Применить на серверах", cls="btn"),
+            button_form(ctx, "verify", "Проверить каскады", cls="btn ghost"),
+            button_form(ctx, "refresh", "Обновить состояние", cls="btn ghost"),
+        )
         + '<p class="hint">«Применить» ставит и настраивает Xray на всех серверах и выпускает ссылки. Повторный запуск безопасен.</p>'
     )
     jobs = ctx.db.q("SELECT id,title,status,started,finished FROM jobs ORDER BY id DESC LIMIT 8")
@@ -605,11 +609,10 @@ def updates_block(ctx) -> str:
         f'<dt>Проверено</dt><dd>{esc(fmt_dt(st["checked"]) if st["checked"] else "нет данных")}</dd><dt>Состояние</dt><dd>{status}</dd></dl>'
         + (f'<h3>Что нового</h3><ul>{commits}</ul>' if commits else "")
     )
-    buttons = button_form(ctx, "update_check", "Проверить обновления", cls="btn")
-    buttons += " " + button_form(ctx, "update_install", "Установить обновления", cls="btn ghost", confirm="Панель перезапустится на несколько секунд. Нажмите ещё раз")
+    buttons = [button_form(ctx, "update_check", "Проверить обновления", cls="btn"), button_form(ctx, "update_install", "Установить обновления", cls="btn ghost", confirm="Панель перезапустится на несколько секунд. Нажмите ещё раз")]
     if st["prev"]:
-        buttons += " " + button_form(ctx, "update_rollback", "Откатить на предыдущую версию", cls="btn ghost sm", confirm="Откатить? Нажмите ещё раз")
-    return info + f"<p>{buttons}</p>" + '<p class="hint">Установка делает git pull, проверяет, что новая версия запускается и тесты проходят, затем перезапускает панель. Если проверка не пройдена, версия откатывается сама.</p>'
+        buttons.append(button_form(ctx, "update_rollback", "Откатить на предыдущую версию", cls="btn ghost", confirm="Откатить? Нажмите ещё раз"))
+    return info + btnrow(*buttons) + '<p class="hint">Установка делает git pull, проверяет, что новая версия запускается и тесты проходят, затем перезапускает панель. Если проверка не пройдена, версия откатывается сама.</p>'
 
 
 def routing_page(ctx) -> str:
