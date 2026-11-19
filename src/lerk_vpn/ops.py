@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .model import Client, SpecError, _check_name, load_clients, save_clients
+from .model import NODE_DEFAULTS, Client, SpecError, _check_name, load_clients, save_clients
 from .provision import apply_node, verify_chain
 from .remote import Remote, RemoteError, install_key
 from .state import State
@@ -235,6 +235,57 @@ def server_set_role(ws: Workspace, name: str, role: str) -> None:
         else:
             raw["nodes"][name].pop("role", None)
         save_raw(ws.topology_path, raw, ws.allow_empty)
+
+
+def _num(label: str, text: str, lo: int, hi: int) -> int:
+    try:
+        v = int(str(text).strip())
+    except ValueError:
+        raise SpecError(f"{label}: нужно целое число") from None
+    if not lo <= v <= hi:
+        raise SpecError(f"{label}: от {lo} до {hi}")
+    return v
+
+
+def server_edit(ws: Workspace, name: str, form: dict) -> list[str]:
+    """Меняет параметры сервера: порт Xray, SNI, fingerprint, flow, mux, ssh-порт, swap, торренты, файрвол.
+    Возвращает названия изменённых параметров; после смены нужен «Применить»."""
+    with ws.lock():
+        raw = load_raw(ws.topology_path)
+        node = (raw.get("nodes") or {}).get(name)
+        if node is None:
+            raise SpecError(f"сервера '{name}' нет")
+        defaults = {**NODE_DEFAULTS, **(raw.get("defaults") or {})}
+        new = {
+            "port": _num("порт Xray", form.get("port", defaults["port"]), 1, 65535),
+            "ssh_port": _num("порт SSH", form.get("ssh_port", defaults["ssh_port"]), 1, 65535),
+            "swap_gb": _num("swap, ГБ", form.get("swap_gb", defaults["swap_gb"]), 0, 64),
+            "mux_concurrency": _num("потоков в mux", form.get("mux_concurrency", defaults["mux_concurrency"]), 1, 1024),
+            "sni": str(form.get("sni", defaults["sni"])).strip().lower(),
+            "fingerprint": str(form.get("fingerprint", defaults["fingerprint"])).strip(),
+            "flow": "" if form.get("flow") == "none" else "xtls-rprx-vision",
+            "mux": bool(form.get("mux")),
+            "block_torrents": bool(form.get("block_torrents")),
+            "firewall": bool(form.get("firewall")),
+        }
+        if new["port"] == new["ssh_port"]:
+            raise SpecError("порт Xray и порт SSH не должны совпадать")
+        for other, o in (raw.get("nodes") or {}).items():
+            if other != name and o.get("host") == node.get("host") and o.get("port", defaults["port"]) == new["port"]:
+                raise SpecError(f"порт {new['port']} уже занят сервером {other} на этом адресе")
+        changed = []
+        for key, val in new.items():
+            cur = node.get(key, defaults.get(key))
+            if cur != val:
+                changed.append(key)
+            # значения по умолчанию в файле не храним
+            if val == defaults.get(key):
+                node.pop(key, None)
+            else:
+                node[key] = val
+        if changed:
+            save_raw(ws.topology_path, raw, ws.allow_empty)
+        return changed
 
 
 def cascade_create(ws: Workspace, entries: list[str], exit_node: str) -> list[str]:
