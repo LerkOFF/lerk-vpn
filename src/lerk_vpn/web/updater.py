@@ -111,7 +111,7 @@ class Updater:
 
     def _verify(self) -> str:
         env = {**ENV, "PYTHONPATH": str(self.root / "src")}
-        imp = subprocess.run([sys.executable, "-I", "-c", "import lerk_vpn.web.app"], capture_output=True, text=True, timeout=60, env=env, cwd=str(self.root))
+        imp = subprocess.run([sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(self.root / 'src')!r}); import lerk_vpn.web.app"], capture_output=True, text=True, timeout=60, env=env, cwd=str(self.root))
         if imp.returncode != 0:
             return "код не импортируется: " + (imp.stderr.strip().splitlines() or ["?"])[-1][:160]
         if (self.root / "tests").is_dir():
