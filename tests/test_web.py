@@ -218,6 +218,34 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(happ.subscription_headers(cfg, "ann", 0, 0)["routing-enable"], "0")
         self.assertEqual(happ.add_link("https://x/sub/a"), "happ://add/https://x/sub/a")
 
+    def test_chain_build_many_hops(self):
+        d = Path(tempfile.mkdtemp()) / "ws"
+        quiet("-C", str(d), "init")
+        ws = Workspace(d)
+        raw = load_raw(ws.topology_path)
+        raw["nodes"]["de1"] = {"host": "203.0.113.30", "country": "DE"}
+        raw["nodes"]["nl1"] = {"host": "203.0.113.31", "country": "NL"}
+        raw["nodes"]["us1"] = {"host": "203.0.113.32"}
+        save_raw(ws.topology_path, raw)
+        name = ops.chain_build(ws, ["fi1", "de1", "nl1", "us1"])
+        topo = ws.load()[0]
+        self.assertEqual(topo.chains[name].path, ("fi1", "de1", "nl1", "us1"))
+        self.assertEqual(topo.chains[name].exit, "us1")
+        self.assertEqual(topo.chains[name].title, "FI-DE-NL-us1")
+        with self.assertRaises(SpecError):
+            ops.chain_build(ws, ["fi1", "de1", "nl1", "us1"])  # такой уже есть
+        with self.assertRaises(SpecError):
+            ops.chain_build(ws, ["fi1", "de1", "fi1"])  # повтор сервера
+        with self.assertRaises(SpecError):
+            ops.chain_build(ws, ["fi1"])  # один сервер это прямой доступ
+        with self.assertRaises(SpecError):
+            ops.chain_build(ws, ["fi1", "nope"])
+        back = ops.chain_build(ws, ["us1", "nl1", "de1", "fi1"])  # встречная, выход другой
+        self.assertNotEqual(back, name)
+        self.assertEqual(quiet("-C", str(d), "chain", "list"), 0)
+        self.assertEqual(quiet("-C", str(d), "chain", "add", "fi1", "us1", "--name", "short", "--title", "FI-US"), 0)
+        self.assertEqual(quiet("-C", str(d), "chain", "add", "fi1"), 2)
+
     def test_topology_edit_operations(self):
         d = Path(tempfile.mkdtemp()) / "ws"
         quiet("-C", str(d), "init")

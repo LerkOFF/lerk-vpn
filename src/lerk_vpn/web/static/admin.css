@@ -274,3 +274,6 @@ td.nw{white-space:nowrap}
 .btnrow+.hint,.btnrow+p{margin-top:var(--s3)}
 .row>form.inline{display:flex;align-items:end}
 .btnrow+form,.btnrow+.form{margin-top:var(--s5)}
+.hoprow{display:flex;gap:var(--s2);align-items:center;margin:0 0 var(--s2)}
+.hoprow select{flex:1;min-width:0}
+.hoprow .btn{flex:0 0 auto;min-width:40px}

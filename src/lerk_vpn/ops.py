@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .model import NODE_DEFAULTS, Client, SpecError, _check_name, load_clients, save_clients
+from .model import NAME_RE, NODE_DEFAULTS, Client, SpecError, _check_name, load_clients, save_clients
 from .provision import apply_node, verify_chain
 from .remote import Remote, RemoteError, install_key
 from .state import State
@@ -383,6 +383,40 @@ def cascade_create(ws: Workspace, entries: list[str], exit_node: str) -> list[st
             raise SpecError("такие каскады уже есть")
         save_raw(ws.topology_path, raw, ws.allow_empty)
     return created
+
+
+def chain_build(ws: Workspace, path: list[str], title: str = "", name: str = "") -> str:
+    """Каскад из любого числа серверов: path = [вход, звено, ..., выход]. Последний сервер выходит в интернет.
+    Один и тот же сервер может входить в разные каскады, но в одном каскаде только один раз."""
+    path = [str(p).strip() for p in path if str(p).strip()]
+    if len(path) < 2:
+        raise SpecError("в каскаде нужно минимум два сервера: вход и выход (один сервер это прямой доступ)")
+    if len(set(path)) != len(path):
+        raise SpecError("сервер не может встречаться в каскаде дважды")
+    with ws.lock():
+        raw = load_raw(ws.topology_path)
+        nodes = raw.get("nodes") or {}
+        for n in path:
+            if n not in nodes:
+                raise SpecError(f"сервера '{n}' нет")
+        chains = raw.setdefault("chains", {})
+        same = next((k for k, c in chains.items() if c.get("path") == path), None)
+        if same:
+            raise SpecError(f"такой каскад уже есть: {same}")
+        base = (name or "-".join(path)).strip().lower()
+        if not NAME_RE.match(base):
+            base = f"{path[0]}-{path[-1]}-x{len(path)}"[:32]
+        final, suffix = base, 2
+        while final in chains:
+            tail = f"-{suffix}"
+            final = base[: 32 - len(tail)] + tail
+            suffix += 1
+        if not NAME_RE.match(final):
+            raise SpecError(f"имя каскада '{final}': строчные латинские буквы, цифры, '-' и '_', до 32 символов")
+        labels = [nodes[n].get("country", "") or n for n in path]
+        chains[final] = {"path": path, "title": (title.strip() or "-".join(labels))[:40]}
+        save_raw(ws.topology_path, raw, ws.allow_empty)
+    return final
 
 
 def direct_create(ws: Workspace, node_names: list[str]) -> list[str]:

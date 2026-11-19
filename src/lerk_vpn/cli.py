@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, ops
 from .model import Client, SpecError, Topology, load_clients, load_topology, save_clients
 from .provision import ApplyResult, apply_node, config_digest, node_status, render, verify_chain
 from .remote import Remote, RemoteError, install_key
@@ -200,6 +200,27 @@ def cmd_status(args, ws: Workspace) -> int:
     return 1 if problems else 0
 
 
+def cmd_chain(args, ws: Workspace) -> int:
+    act = args.action
+    if act == "list":
+        topo, clients, _ = ws.load()
+        rows = [[c.name, " -> ".join(c.path) + " -> интернет", c.title, str(sum(1 for x in clients if c.name in x.chains))] for c in topo.chains.values()]
+        print(table(rows, ["цепочка", "путь", "название", "клиентов"]))
+        return 0
+    if act == "add":
+        if len(args.nodes) < 2:
+            raise SpecError("укажите серверы по порядку: вход, звенья, выход (последний выходит в интернет), например: chain add s1 s2 s3")
+        name = ops.chain_build(ws, args.nodes, args.title or "", args.name or "")
+        print(ok(f"цепочка {name}: " + " -> ".join(args.nodes) + " -> интернет"))
+        print("дальше: lerk-vpn client add имя --chain " + name + ", затем lerk-vpn apply")
+        return 0
+    if len(args.nodes) != 1:
+        raise SpecError("укажите имя цепочки")
+    ops.chain_delete(ws, args.nodes[0])
+    print(ok(f"цепочка {args.nodes[0]} удалена; lerk-vpn apply уберёт её с серверов"))
+    return 0
+
+
 def cmd_client(args, ws: Workspace) -> int:
     topo, clients, state = ws.load()
     by_name = {c.name: c for c in clients}
@@ -334,6 +355,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("status", help="состояние серверов и совпадение конфигов")
     s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("chain", help="цепочки: add (любое число серверов, последний выходной), list, rm")
+    s.add_argument("action", choices=["add", "list", "rm"])
+    s.add_argument("nodes", nargs="*", help="add: серверы по порядку вход ... выход; rm: имя цепочки")
+    s.add_argument("--name", help="имя цепочки (по умолчанию из имён серверов)")
+    s.add_argument("--title", help="название, которое видит клиент в Happ")
+    s.set_defaults(fn=cmd_chain)
 
     s = sub.add_parser("client", help="клиенты: add, rm, enable, disable, rotate, list")
     s.add_argument("action", choices=["add", "rm", "enable", "disable", "rotate", "list"])

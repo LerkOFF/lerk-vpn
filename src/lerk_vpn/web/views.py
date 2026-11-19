@@ -378,6 +378,27 @@ def servers_page(ctx) -> str:
         f'<h3>Серверы 1 (можно несколько)</h3><div class="checks">{ent_html}</div><h3>Сервер 2 (только один)</h3><div class="checks">{exit_html}</div>'
         '<div><button class="btn" type="submit">Создать каскады</button></div><p class="hint">Для каждого выбранного сервера 1 создаётся каскад: клиент → сервер 1 → сервер 2 → интернет.</p>',
     )
+    def node_opts(selected: str = "", empty: str = "") -> str:
+        out = f'<option value="">{esc(empty)}</option>' if empty else ""
+        return out + "".join(f'<option value="{esc(n.name)}"{" selected" if n.name == selected else ""}>{esc(n.name)} · {esc(n.host)} {esc(n.country)}</option>' for n in topo.nodes.values())
+
+    names = list(topo.nodes)
+    chain_form = form(
+        ctx, "chain_build",
+        '<div class="hops" data-hops><div class="row">'
+        f'<label>Вход (сюда подключаются клиенты)<select name="entry" data-hop-entry required>{node_opts(names[0] if names else "")}</select></label></div>'
+        '<h3>Промежуточные серверы по порядку</h3>'
+        '<div data-hop-list></div>'
+        f'<template data-hop-tpl><div class="hoprow"><select name="mids" aria-label="Промежуточный сервер">{node_opts()}</select>'
+        '<button class="btn ghost sm" type="button" data-hop-up title="Выше">↑</button><button class="btn ghost sm" type="button" data-hop-down title="Ниже">↓</button>'
+        '<button class="btn danger sm" type="button" data-hop-del title="Убрать">×</button></div></template>'
+        '<div><button class="btn ghost" type="button" data-hop-add>+ Добавить сервер в цепочку</button></div>'
+        f'<div class="row"><label>Выход (с его адреса сайты видят клиента)<select name="exit" data-hop-exit required>{node_opts(names[-1] if names else "")}</select></label>'
+        '<label>Название для Happ (необязательно)<input type="text" name="title" maxlength="40" placeholder="FI-DE-FR"></label></div>'
+        '<p class="hint" data-hop-preview></p></div>'
+        '<div><button class="btn" type="submit">Собрать цепочку</button></div>'
+        '<p class="hint">Сколько угодно серверов: клиент → вход → звено → … → выход → интернет. Любой сервер можно ставить на любое место, один сервер может входить в разные каскады, в одном каскаде только один раз. Чем длиннее цепочка, тем ниже скорость и выше задержка.</p>',
+    )
     edit_blocks = []
     for name, n in topo.nodes.items():
         fps = "".join(f'<option value="{f}"{" selected" if f == n.fingerprint else ""}>{f}</option>' for f in sorted(FINGERPRINTS))
@@ -457,7 +478,7 @@ def servers_page(ctx) -> str:
         f"<h1>Серверы и каскады</h1>{pending_banner(ctx)}"
         '<div class="stack" data-sortable="servers">'
         + block("add", "Добавить сервер", add) + block("list", "Серверы", srv_table) + block("params", "Порты и параметры серверов", edit_html)
-        + block("cascade", "Создать каскады", cascade) + block("direct", "Прямой доступ (без каскада)", direct) + block("chains", "Каскады", chains_html)
+        + block("cascade", "Создать каскады", cascade) + block("chainbuild", "Собрать цепочку из нескольких серверов", chain_form) + block("direct", "Прямой доступ (без каскада)", direct) + block("chains", "Каскады", chains_html)
         + block("ops", "Установка и проверка", ops) + block("jobs", "Последние операции", table(["Операция", "Итог", "Начало"], job_rows, empty="операций ещё не было"))
         + '</div><p><button class="btn ghost sm" type="button" data-dnd-reset>Сбросить порядок блоков</button></p>'
     )

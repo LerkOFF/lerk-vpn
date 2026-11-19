@@ -67,6 +67,31 @@
       };
       setTimeout(wait, 2500);
     }
+    // конструктор цепочки: любое число серверов, последний выходной
+    Array.prototype.forEach.call(document.querySelectorAll('[data-hops]'), function (box) {
+      var list = box.querySelector('[data-hop-list]'), tpl = box.querySelector('[data-hop-tpl]');
+      var entry = box.querySelector('[data-hop-entry]'), exit = box.querySelector('[data-hop-exit]'), pv = box.querySelector('[data-hop-preview]');
+      function label(sel) { var o = sel.options[sel.selectedIndex]; return o && o.value ? o.value : '?'; }
+      function preview() {
+        var parts = [label(entry)];
+        Array.prototype.forEach.call(list.querySelectorAll('select'), function (s) { if (s.value) parts.push(label(s)); });
+        parts.push(label(exit));
+        var dup = parts.some(function (p, i) { return parts.indexOf(p) !== i; });
+        pv.textContent = 'Путь: клиент → ' + parts.join(' → ') + ' → интернет' + (dup ? '. Сервер повторяется, так нельзя.' : '. Выход в сеть будет с адреса ' + parts[parts.length - 1] + '.');
+      }
+      box.addEventListener('change', preview);
+      box.querySelector('[data-hop-add]').addEventListener('click', function () {
+        list.appendChild(tpl.content.cloneNode(true)); preview();
+      });
+      list.addEventListener('click', function (e) {
+        var row = e.target.closest('.hoprow'); if (!row) return;
+        if (e.target.matches('[data-hop-del]')) row.remove();
+        else if (e.target.matches('[data-hop-up]') && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+        else if (e.target.matches('[data-hop-down]') && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+        preview();
+      });
+      preview();
+    });
     // выбор сервера 2: ровно один
     // (радио-кнопки это обеспечивают сами, для сервера 1 допустим список)
   });

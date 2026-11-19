@@ -137,6 +137,15 @@ def cascade_create(ctx) -> Result:
     return "ok", f"Создано каскадов: {len(created)} ({', '.join(created)}). Добавьте клиентов и примените изменения.", url("servers")
 
 
+def chain_build(ctx) -> Result:
+    mids = [m for m in ctx.forms.get("mids", []) if m]
+    path = [ctx.form.get("entry", ""), *mids, ctx.form.get("exit", "")]
+    name = ops.chain_build(ctx.ws, path, ctx.form.get("title", ""))
+    ctx.audit("каскад собран", name, " -> ".join(path))
+    _dirty(ctx)
+    return "ok", f"Каскад {name}: {' → '.join(path)} → интернет. Добавьте клиентов и примените изменения.", url("servers")
+
+
 def direct_create(ctx) -> Result:
     created = ops.direct_create(ctx.ws, ctx.forms.get("nodes", []))
     _dirty(ctx)
@@ -306,7 +315,7 @@ def update_rollback(ctx) -> Result:
 ACTIONS = {
     "client_add": client_add, "client_toggle": client_toggle, "client_note": client_note, "client_chains": client_chains,
     "client_rotate": client_rotate, "client_delete": client_delete, "server_role": server_role, "server_edit": server_edit, "server_rename": server_rename, "chain_edit": chain_edit, "client_rename": client_rename, "server_delete": server_delete,
-    "cascade_create": cascade_create, "direct_create": direct_create, "chain_delete": chain_delete, "apply": apply_job, "verify": verify_job, "refresh": refresh,
+    "cascade_create": cascade_create, "chain_build": chain_build, "direct_create": direct_create, "chain_delete": chain_delete, "apply": apply_job, "verify": verify_job, "refresh": refresh,
     "server_add": server_add, "settings_save": settings_save, "update_check": update_check, "update_install": update_install,
     "update_rollback": update_rollback, "route_add": route_add, "geo_update": geo_update,
 }
