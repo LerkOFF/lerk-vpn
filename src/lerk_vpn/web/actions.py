@@ -87,9 +87,47 @@ def server_edit(ctx) -> Result:
 
 def server_delete(ctx) -> Result:
     name = ctx.form.get("name", "")
-    ops.server_delete(ctx.ws, name)
-    ctx.audit("сервер удалён из панели", name)
-    return "ok", f"Сервер {name} убран из панели. Сам сервер не тронут, Xray на нём остался.", url("servers")
+    removed = ops.server_delete(ctx.ws, name, with_chains=bool(ctx.form.get("with_chains")))
+    ctx.audit("сервер удалён из панели", name, ", ".join(removed))
+    ctx.db.x("DELETE FROM sample WHERE node=?", (name,))
+    if removed:
+        _dirty(ctx)
+    extra = f" Вместе с каскадами: {', '.join(removed)}." if removed else ""
+    return "ok", f"Сервер {name} убран из панели.{extra} Сам сервер не тронут, Xray на нём остался.", url("servers")
+
+
+def server_rename(ctx) -> Result:
+    old, new = ctx.form.get("name", ""), ctx.form.get("new_name", "").strip().lower() or ctx.form.get("name", "")
+    ops.server_rename(ctx.ws, old, new, ctx.form.get("country", ""))
+    if new != old:
+        ctx.db.x("UPDATE sample SET node=? WHERE node=?", (new, old))
+        ctx.db.x("UPDATE traffic SET node=? WHERE node=?", (new, old))
+    _dirty(ctx)
+    ctx.audit("сервер изменён", new, f"{old} -> {new}" if new != old else "")
+    return "ok", "Сохранено. Нажмите «Применить», чтобы изменения попали на серверы.", url("servers")
+
+
+def chain_edit(ctx) -> Result:
+    name = ctx.form.get("name", "")
+    new = ops.chain_edit(ctx.ws, name, ctx.form.get("title", ""), ctx.form.get("new_name", ""))
+    if new != name:
+        ctx.db.x("UPDATE traffic SET chain=? WHERE chain=?", (new, name))
+        ctx.db.x("UPDATE verify SET chain=? WHERE chain=?", (new, name))
+    _dirty(ctx)
+    ctx.audit("каскад изменён", new, f"{name} -> {new}" if new != name else "")
+    return "ok", "Каскад сохранён. Название увидят клиенты после обновления подписки; нажмите «Применить».", url("servers")
+
+
+def client_rename(ctx) -> Result:
+    old, new = ctx.form.get("name", ""), ctx.form.get("new_name", "")
+    ops.client_rename(ctx.ws, old, new)
+    new = new.strip().lower()
+    if new != old:
+        ctx.db.x("UPDATE traffic SET client=? WHERE client=?", (new, old))
+        ctx.db.x("UPDATE audit SET target=? WHERE target=?", (new, old))
+        _dirty(ctx)
+        ctx.audit("клиент переименован", new, f"{old} -> {new}")
+    return "ok", "Имя сохранено. Ссылка подписки осталась прежней, примените изменения на серверах.", url("client", name=new)
 
 
 def cascade_create(ctx) -> Result:
@@ -263,7 +301,7 @@ def update_rollback(ctx) -> Result:
 
 ACTIONS = {
     "client_add": client_add, "client_toggle": client_toggle, "client_note": client_note, "client_chains": client_chains,
-    "client_rotate": client_rotate, "client_delete": client_delete, "server_role": server_role, "server_edit": server_edit, "server_delete": server_delete,
+    "client_rotate": client_rotate, "client_delete": client_delete, "server_role": server_role, "server_edit": server_edit, "server_rename": server_rename, "chain_edit": chain_edit, "client_rename": client_rename, "server_delete": server_delete,
     "cascade_create": cascade_create, "direct_create": direct_create, "chain_delete": chain_delete, "apply": apply_job, "verify": verify_job, "refresh": refresh,
     "server_add": server_add, "settings_save": settings_save, "update_check": update_check, "update_install": update_install,
     "update_rollback": update_rollback, "route_add": route_add, "geo_update": geo_update,

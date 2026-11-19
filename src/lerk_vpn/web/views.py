@@ -239,6 +239,12 @@ def client_page(ctx) -> str:
         + " " + button_form(ctx, "client_rotate", "Выпустить новые ключи", {"name": name}, confirm="Старые ссылки перестанут работать. Нажмите ещё раз")
         + " " + button_form(ctx, "client_delete", "Удалить клиента", {"name": name}, cls="btn danger sm", confirm="Удалить насовсем? Нажмите ещё раз")
     )
+    rename = form(
+        ctx, "client_rename",
+        f'<input type="hidden" name="name" value="{esc(name)}"><div class="row"><label>Новое имя (латиницей)<input type="text" name="new_name" value="{esc(name)}" required pattern="[a-z0-9][a-z0-9_-]{{0,31}}"></label>'
+        '<button class="btn ghost" type="submit">Переименовать</button></div><p class="hint">Ссылка подписки и ключи не меняются, клиенту ничего переустанавливать не нужно.</p>',
+    )
+    actions += rename
     happ_html = happ_block(ctx, name, client, links, sub_url, topo)
     hist = ctx.db.q("SELECT ts,action,detail,ip FROM audit WHERE target=? ORDER BY id DESC LIMIT 30", (name,))
     hist_rows = [[esc(fmt_dt(h["ts"])), esc(h["action"]), esc(h["detail"] or ""), esc(h["ip"] or "")] for h in hist]
@@ -355,7 +361,7 @@ def servers_page(ctx) -> str:
         used = [c for c, ch in topo.chains.items() if name in ch.path]
         role_sel = "".join(f'<option value="{v}"{" selected" if v == n.role else ""}>{esc(l)}</option>' for v, l in ROLE_LABEL.items())
         role_form = form(ctx, "server_role", f'<input type="hidden" name="name" value="{esc(name)}"><select name="role" aria-label="Роль">{role_sel}</select> <button class="btn ghost sm" type="submit">ОК</button>', cls="inline")
-        delete = button_form(ctx, "server_delete", "Удалить", {"name": name}, cls="btn danger sm", confirm="Точно? Нажмите ещё раз") if not used else '<span class="hint">в каскаде</span>'
+        delete = button_form(ctx, "server_delete", "Удалить", {"name": name}, cls="btn danger sm", confirm="Точно? Нажмите ещё раз") if not used else button_form(ctx, "server_delete", "Удалить с каскадами", {"name": name, "with_chains": "1"}, cls="btn danger sm", confirm=f"Удалятся каскады: {', '.join(used)}. Нажмите ещё раз")
         rows.append([
             f"<strong>{esc(name)}</strong>", esc(n.host), esc(n.country or "-"), role_form, badge(label, kind),
             esc(s["xray"] if s and s["ok"] else "-"), esc(", ".join(used) or "-"), delete,
@@ -398,6 +404,18 @@ def servers_page(ctx) -> str:
             )
             + "</details>"
         )
+    for name, n in topo.nodes.items():
+        edit_blocks.append(
+            f'<details><summary>Имя и страна: <strong>{esc(name)}</strong></summary>'
+            + form(
+                ctx, "server_rename",
+                f'<input type="hidden" name="name" value="{esc(name)}"><div class="row">'
+                f'<label>Имя<input type="text" name="new_name" value="{esc(name)}" required pattern="[a-z0-9][a-z0-9_-]{{0,31}}"></label>'
+                f'<label>Страна (две буквы)<input type="text" name="country" value="{esc(n.country)}" maxlength="2" placeholder="FI"></label>'
+                '<button class="btn ghost" type="submit">Сохранить</button></div><p class="hint">Имя меняется во всех каскадах и ключах. После сохранения нажмите «Применить».</p>',
+            )
+            + "</details>"
+        )
     edit_html = "".join(edit_blocks) or '<p class="muted">серверов нет</p>'
     direct_html = "".join(f'<label><input type="checkbox" name="nodes" value="{esc(n.name)}"> {esc(n.name)} · {esc(n.host)} {esc(n.country)}</label>' for n in topo.nodes.values()) or '<span class="muted">серверов нет</span>'
     direct = form(
@@ -416,6 +434,18 @@ def servers_page(ctx) -> str:
             button_form(ctx, "chain_delete", "Удалить", {"name": k}, cls="btn danger sm", confirm="Точно? Нажмите ещё раз"),
         ])
     chains_html = table(["Имя", "Название", "Путь", "Проверка", "Клиентов", ""], chain_rows, num={4}, empty="каскадов нет")
+    for k, ch in topo.chains.items():
+        chains_html += (
+            f'<details><summary>Изменить: <strong>{esc(k)}</strong> · {esc(ch.title)}</summary>'
+            + form(
+                ctx, "chain_edit",
+                f'<input type="hidden" name="name" value="{esc(k)}"><div class="row">'
+                f'<label>Название (видит клиент в Happ)<input type="text" name="title" value="{esc(ch.title)}" maxlength="40" required></label>'
+                f'<label>Имя (внутреннее)<input type="text" name="new_name" value="{esc(k)}" required pattern="[a-z0-9][a-z0-9_-]{{0,31}}"></label>'
+                '<button class="btn ghost" type="submit">Сохранить</button></div><p class="hint">Название попадает в имя конфига у клиента. Внутреннее имя можно менять, ключи сохранятся.</p>',
+            )
+            + "</details>"
+        )
     ops = (
         button_form(ctx, "apply", "Применить на серверах", cls="btn")
         + " " + button_form(ctx, "verify", "Проверить каскады")

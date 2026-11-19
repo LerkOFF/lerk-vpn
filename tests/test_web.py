@@ -108,6 +108,24 @@ class PanelTests(unittest.TestCase):
         actions = [r["action"] for r in self.app.db.q("SELECT action FROM audit")]
         self.assertIn("клиент создан", actions)
 
+    def test_03b_rename_and_delete_via_panel(self):
+        cookie = self.login()
+        token = self.csrf(cookie)
+        self.req("/do/client_add", {"_csrf": token, "name": "temp1", "chains": "main"}, cookie)
+        self.app.db.x("INSERT INTO traffic VALUES(1,'s1','main','temp1',1,2)")
+        status, _, _ = self.req("/do/client_rename", {"_csrf": token, "name": "temp1", "new_name": "temp2"}, cookie)
+        self.assertEqual(status, 303)
+        self.assertIn("temp2", self.req("/?p=clients", cookie=cookie)[2])
+        self.assertTrue(self.app.db.one("SELECT 1 FROM traffic WHERE client='temp2'"))
+        self.req("/do/client_rename", {"_csrf": token, "name": "temp2", "new_name": "ann"}, cookie)  # занято
+        self.assertEqual(self.req("/?p=client&name=temp2", cookie=cookie)[0], 200)
+        status, _, _ = self.req("/do/chain_edit", {"_csrf": token, "name": "main", "title": "Главный", "new_name": "main"}, cookie)
+        self.assertEqual(status, 303)
+        self.assertIn("Главный", self.req("/?p=servers", cookie=cookie)[2])
+        self.req("/do/client_delete", {"_csrf": token, "name": "temp2"}, cookie)
+        self.assertNotIn("temp2", self.req("/?p=clients", cookie=cookie)[2])
+        self.req("/do/chain_edit", {"_csrf": token, "name": "main", "title": "FI-FR", "new_name": "main"}, cookie)
+
     def test_04_login_rate_limit_and_same_error(self):
         app = self.app
         app.settings.save({"security.max_attempts": "3"}, "t")
@@ -223,10 +241,37 @@ class UnitTests(unittest.TestCase):
         with self.assertRaises(SpecError):
             ops.direct_create(ws, ["fi1"])
         self.assertEqual(ws.load()[0].chains["direct-fi1"].path, ("fi1",))
+        # переименования сохраняют ключи и ссылки
+        tok = ws.load()[2].token("ann")
+        ops.client_rename(ws, "ann", "anna")
+        topo, clients, st = ws.load()
+        self.assertEqual([c.name for c in clients], ["anna"])
+        self.assertEqual(st.token("anna"), tok)
+        with self.assertRaises(SpecError):
+            ops.client_rename(ws, "anna", "Bad Name")
+        hop_key = next((k for k in st.data["hops"] if k.startswith("fi1-de1/")), None)
+        self.assertEqual(ops.chain_edit(ws, "fi1-de1", "Финляндия", "fi-de"), "fi-de")
+        topo, clients, st = ws.load()
+        self.assertEqual(topo.chains["fi-de"].title, "Финляндия")
+        self.assertIn("fi-de", clients[0].chains)
+        self.assertIn("fi-de", st.data["clients"]["anna"]["uuids"])
+        self.assertIn("fi-de/0", st.data["hops"])
+        ops.server_rename(ws, "de1", "frankfurt", "de")
+        topo, clients, st = ws.load()
+        self.assertEqual(topo.chains["fi-de"].path, ("fi1", "frankfurt"))
+        self.assertEqual(topo.nodes["frankfurt"].country, "DE")
+        self.assertIn("frankfurt", st.data["nodes"])
+        with self.assertRaises(SpecError):
+            ops.server_delete(ws, "frankfurt")  # в каскаде
+        ops.server_rename(ws, "frankfurt", "de1")
         ops.server_set_role(ws, "fi1", "entry")
         self.assertEqual(ws.load()[0].nodes["fi1"].role, "entry")
         with self.assertRaises(SpecError):
             ops.server_set_role(ws, "fi1", "boss")
+        ops.direct_create(ws, ["de1"])
+        removed = ops.server_delete(ws, "de1", with_chains=True)
+        self.assertCountEqual(removed, ["fi-de", "direct-de1"])
+        self.assertNotIn("de1", ws.load()[0].nodes)
         backups = list((d / "backup").glob("topology.*.toml"))
         self.assertTrue(backups)
         with self.assertRaises(SpecError):
