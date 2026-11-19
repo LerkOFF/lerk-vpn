@@ -51,7 +51,7 @@ lerk-vpn links ann                 # ссылки vless:// для приложе
 | `ssh_user`, `ssh_port` | `root`, `22` | параметры SSH |
 | `port` | `443` | порт входа Xray |
 | `sni` | `dl.google.com` | сайт для маскировки Reality, должен отдавать TLS 1.3 |
-| `fingerprint` | `chrome` | отпечаток TLS-клиента |
+| `fingerprint` | `firefox` | отпечаток TLS-клиента; `chrome` самый массовый у прокси и чаще попадает под блокировку у российских операторов |
 | `swap_gb` | `4` | размер swap, `0` не трогать |
 | `bbr` | `true` | включить BBR |
 | `firewall` | `false` | поставить ufw и открыть только SSH и порт Xray |

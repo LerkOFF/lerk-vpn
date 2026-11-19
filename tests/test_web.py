@@ -266,7 +266,7 @@ class UnitTests(unittest.TestCase):
         ops.chain_delete(ws, "main")  # клиент не был на main, остаётся на новом
         _, clients, _ = ws.load()
         self.assertEqual(clients[0].chains, ["fi1-de1"])
-        changed = ops.server_edit(ws, "fi1", {"port": "8443", "ssh_port": "22", "swap_gb": "4", "mux_concurrency": "8", "sni": "dl.google.com", "fingerprint": "chrome", "flow": "vision", "block_torrents": "1"})
+        changed = ops.server_edit(ws, "fi1", {"port": "8443", "ssh_port": "22", "swap_gb": "4", "mux_concurrency": "8", "sni": "dl.google.com", "fingerprint": "firefox", "flow": "vision", "block_torrents": "1"})
         self.assertEqual(changed, ["port"])
         self.assertEqual(ws.load()[0].nodes["fi1"].port, 8443)
         with self.assertRaises(SpecError):

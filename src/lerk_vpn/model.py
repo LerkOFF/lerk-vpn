@@ -23,7 +23,7 @@ NODE_DEFAULTS = {
     "bbr": True,
     "firewall": False,
     "block_torrents": True,
-    "fingerprint": "chrome",
+    "fingerprint": "firefox",
     "flow": "xtls-rprx-vision",
     "mux": False,
     "mux_concurrency": 8,
