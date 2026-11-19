@@ -322,6 +322,34 @@ def cascade_create(ws: Workspace, entries: list[str], exit_node: str) -> list[st
     return created
 
 
+def direct_create(ws: Workspace, node_names: list[str]) -> list[str]:
+    """Прямой доступ без каскада: клиент подключается к одному серверу и выходит в интернет с него."""
+    if not node_names:
+        raise SpecError("выберите хотя бы один сервер")
+    with ws.lock():
+        raw = load_raw(ws.topology_path)
+        nodes = raw.get("nodes") or {}
+        chains = raw.setdefault("chains", {})
+        created = []
+        for n in dict.fromkeys(node_names):
+            if n not in nodes:
+                raise SpecError(f"сервера '{n}' нет")
+            if any(c.get("path") == [n] for c in chains.values()):
+                continue
+            name = f"direct-{n}"
+            suffix = 2
+            while name in chains:
+                name = f"direct-{n}-{suffix}"
+                suffix += 1
+            cc = nodes[n].get("country", "")
+            chains[name] = {"path": [n], "title": f"{cc}-direct" if cc else name}
+            created.append(name)
+        if not created:
+            raise SpecError("прямой доступ на выбранных серверах уже есть")
+        save_raw(ws.topology_path, raw, ws.allow_empty)
+    return created
+
+
 def chain_delete(ws: Workspace, name: str) -> None:
     with ws.lock():
         raw = load_raw(ws.topology_path)

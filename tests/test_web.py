@@ -219,6 +219,10 @@ class UnitTests(unittest.TestCase):
         ops.server_edit(ws, "de1", {"port": "443", "mux": "1", "mux_concurrency": "16", "flow": "none", "block_torrents": "1"})
         n = ws.load()[0].nodes["de1"]
         self.assertTrue(n.mux and n.flow == "" and n.mux_concurrency == 16)
+        self.assertEqual(ops.direct_create(ws, ["fi1"]), ["direct-fi1"])
+        with self.assertRaises(SpecError):
+            ops.direct_create(ws, ["fi1"])
+        self.assertEqual(ws.load()[0].chains["direct-fi1"].path, ("fi1",))
         ops.server_set_role(ws, "fi1", "entry")
         self.assertEqual(ws.load()[0].nodes["fi1"].role, "entry")
         with self.assertRaises(SpecError):

@@ -399,6 +399,12 @@ def servers_page(ctx) -> str:
             + "</details>"
         )
     edit_html = "".join(edit_blocks) or '<p class="muted">серверов нет</p>'
+    direct_html = "".join(f'<label><input type="checkbox" name="nodes" value="{esc(n.name)}"> {esc(n.name)} · {esc(n.host)} {esc(n.country)}</label>' for n in topo.nodes.values()) or '<span class="muted">серверов нет</span>'
+    direct = form(
+        ctx, "direct_create",
+        f'<div class="checks">{direct_html}</div><div><button class="btn" type="submit">Создать прямой доступ</button></div>'
+        '<p class="hint">Клиент подключается к одному серверу и выходит в интернет с его адреса, без второго сервера. Все параметры сервера (порт, SNI, flow, mux, торренты) и маршрутизация Happ работают так же.</p>',
+    )
     ver = data.latest_verify(ctx.db)
     chain_rows = []
     for k, ch in topo.chains.items():
@@ -422,7 +428,7 @@ def servers_page(ctx) -> str:
         f"<h1>Серверы и каскады</h1>{pending_banner(ctx)}"
         '<div class="stack" data-sortable="servers">'
         + block("add", "Добавить сервер", add) + block("list", "Серверы", srv_table) + block("params", "Порты и параметры серверов", edit_html)
-        + block("cascade", "Создать каскады", cascade) + block("chains", "Каскады", chains_html)
+        + block("cascade", "Создать каскады", cascade) + block("direct", "Прямой доступ (без каскада)", direct) + block("chains", "Каскады", chains_html)
         + block("ops", "Установка и проверка", ops) + block("jobs", "Последние операции", table(["Операция", "Итог", "Начало"], job_rows, empty="операций ещё не было"))
         + '</div><p><button class="btn ghost sm" type="button" data-dnd-reset>Сбросить порядок блоков</button></p>'
     )

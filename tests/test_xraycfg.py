@@ -120,3 +120,22 @@ class FlowMuxTests(unittest.TestCase):
         self.assertIn("flow=xtls-rprx-vision", client_links(topo, st, clients[0])[0])
         topo2 = parse_topology({"nodes": {"a": {"host": "203.0.113.1", "flow": "", "port": 2053}}, "chains": {"c": {"path": ["a"]}}})
         self.assertNotIn("flow=", client_links(topo2, st, clients[0])[0])
+
+
+class DirectChainTests(unittest.TestCase):
+    def test_single_server_chain_goes_direct(self):
+        import tempfile
+        from pathlib import Path
+        from lerk_vpn.model import Client, parse_topology
+        from lerk_vpn.state import State
+
+        topo = parse_topology({"nodes": {"a": {"host": "203.0.113.1", "port": 2053, "mux": False}}, "chains": {"d": {"path": ["a"], "title": "FI-direct"}}})
+        clients = [Client("ann", ["d"])]
+        st = State(Path(tempfile.mkdtemp()) / "s.json")
+        st.ensure(topo, clients)
+        cfg = build_node_config(topo, clients, st, "a")
+        self.assertEqual(len(cfg["inbounds"][0]["settings"]["clients"]), 1)
+        rule = next(r for r in cfg["routing"]["rules"] if r.get("user"))
+        self.assertEqual(rule["outboundTag"], "direct")
+        self.assertTrue(client_links(topo, st, clients[0])[0].startswith("vless://"))
+        self.assertIn(":2053?", client_links(topo, st, clients[0])[0])

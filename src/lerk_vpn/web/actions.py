@@ -99,6 +99,13 @@ def cascade_create(ctx) -> Result:
     return "ok", f"Создано каскадов: {len(created)} ({', '.join(created)}). Добавьте клиентов и примените изменения.", url("servers")
 
 
+def direct_create(ctx) -> Result:
+    created = ops.direct_create(ctx.ws, ctx.forms.get("nodes", []))
+    _dirty(ctx)
+    ctx.audit("прямой доступ создан", ", ".join(created))
+    return "ok", f"Создан прямой доступ: {', '.join(created)}. Теперь можно выдавать клиентам, затем нажмите «Применить».", url("servers")
+
+
 def chain_delete(ctx) -> Result:
     name = ctx.form.get("name", "")
     ops.chain_delete(ctx.ws, name)
@@ -257,7 +264,7 @@ def update_rollback(ctx) -> Result:
 ACTIONS = {
     "client_add": client_add, "client_toggle": client_toggle, "client_note": client_note, "client_chains": client_chains,
     "client_rotate": client_rotate, "client_delete": client_delete, "server_role": server_role, "server_edit": server_edit, "server_delete": server_delete,
-    "cascade_create": cascade_create, "chain_delete": chain_delete, "apply": apply_job, "verify": verify_job, "refresh": refresh,
+    "cascade_create": cascade_create, "direct_create": direct_create, "chain_delete": chain_delete, "apply": apply_job, "verify": verify_job, "refresh": refresh,
     "server_add": server_add, "settings_save": settings_save, "update_check": update_check, "update_install": update_install,
     "update_rollback": update_rollback, "route_add": route_add, "geo_update": geo_update,
 }
