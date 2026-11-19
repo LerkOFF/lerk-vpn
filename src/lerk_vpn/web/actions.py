@@ -280,6 +280,8 @@ def update_check(ctx) -> Result:
 
 
 def update_install(ctx) -> Result:
+    if ctx.app.jobs.running():
+        return "err", "Сейчас идёт операция на серверах. Дождитесь её окончания, иначе перезапуск панели её оборвёт.", url("settings")
     ok, msg = ctx.app.updater.install()
     ctx.audit("установка обновления", "", msg)
     if not ok:
@@ -291,6 +293,8 @@ def update_install(ctx) -> Result:
 
 
 def update_rollback(ctx) -> Result:
+    if ctx.app.jobs.running():
+        return "err", "Сейчас идёт операция на серверах. Дождитесь её окончания, иначе перезапуск панели её оборвёт.", url("settings")
     ok, msg = ctx.app.updater.rollback()
     ctx.audit("откат обновления", "", msg)
     if not ok:

@@ -126,6 +126,17 @@ class PanelTests(unittest.TestCase):
         self.assertNotIn("temp2", self.req("/?p=clients", cookie=cookie)[2])
         self.req("/do/chain_edit", {"_csrf": token, "name": "main", "title": "FI-FR", "new_name": "main"}, cookie)
 
+    def test_03c_update_blocked_while_job_runs(self):
+        cookie = self.login()
+        token = self.csrf(cookie)
+        self.assertTrue(self.app.jobs._busy.acquire(blocking=False))
+        try:
+            status, headers, _ = self.req("/do/update_install", {"_csrf": token}, cookie)
+            self.assertEqual(status, 303)
+            self.assertEqual(self.app.db.one("SELECT COUNT(*) n FROM audit WHERE action='установка обновления'")["n"], 0)
+        finally:
+            self.app.jobs._busy.release()
+
     def test_04_login_rate_limit_and_same_error(self):
         app = self.app
         app.settings.save({"security.max_attempts": "3"}, "t")
