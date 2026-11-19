@@ -16,6 +16,7 @@ from .provision import ApplyResult, apply_node, config_digest, node_status, rend
 from .remote import Remote, RemoteError, install_key
 from .serve import serve
 from .state import State
+from .workspace import Workspace, pick_nodes, write_exports
 from .templates import GITIGNORE, TOPOLOGY
 from .xraycfg import apply_order, build_node_config, chains_through, client_links, users_at
 
@@ -38,21 +39,6 @@ def warn(text: str) -> str:
     return paint(text, "33")
 
 
-class Workspace:
-    def __init__(self, root: Path):
-        self.root = root
-        self.topology_path = root / "topology.toml"
-        self.clients_path = root / "clients.json"
-        self.state_path = root / "state.json"
-        self.out = root / "out"
-
-    def load(self) -> tuple[Topology, list[Client], State]:
-        topo = load_topology(self.topology_path)
-        clients = load_clients(self.clients_path, topo)
-        state = State.load(self.state_path)
-        return topo, clients, state
-
-
 def table(rows: list[list[str]], header: list[str]) -> str:
     cols = [header] + rows
     widths = [max(len(_plain(r[i])) for r in cols) for i in range(len(header))]
@@ -72,16 +58,6 @@ def _plain(s: str) -> str:
 
 def _plain_pad(s: str, width: int) -> str:
     return s + " " * (width - len(_plain(s)))
-
-
-def pick_nodes(topo: Topology, names: list[str] | None) -> list[str]:
-    order = apply_order(topo)
-    if not names:
-        return order
-    for n in names:
-        if n not in topo.nodes:
-            raise SpecError(f"сервера '{n}' нет в topology.toml")
-    return [n for n in order if n in names]
 
 
 # ---------------------------------------------------------------- команды
@@ -161,64 +137,12 @@ def cmd_bootstrap(args, ws: Workspace) -> int:
     return 1 if failed else 0
 
 
-def write_exports(ws: Workspace, topo: Topology, clients: list[Client], state: State) -> int:
-    sub = ws.out / "subscriptions"
-    sub.mkdir(parents=True, exist_ok=True)
-    for old in sub.glob("*"):
-        old.unlink()
-    count = 0
-    index = []
-    for client in clients:
-        if not client.enabled:
-            continue
-        links = client_links(topo, state, client)
-        text = "\n".join(links) + "\n"
-        (sub / f"{client.name}.txt").write_text(text, "utf-8")
-        (sub / f"{client.name}.b64").write_text(base64.b64encode(text.encode()).decode(), "utf-8")
-        index.append(f"{client.name}\t/sub/{state.token(client.name)}")
-        count += 1
-    (ws.out / "index.tsv").write_text("\n".join(index) + ("\n" if index else ""), "utf-8")
-    for p in [ws.out, sub, *sub.glob("*"), ws.out / "index.tsv"]:
-        os.chmod(p, 0o700 if p.is_dir() else 0o600)
-    return count
-
-
 def cmd_apply(args, ws: Workspace) -> int:
-    topo, clients, state = ws.load()
-    if state.ensure(topo, clients):
-        state.save()
-    names = pick_nodes(topo, args.node)
-    configs = {n: build_node_config(topo, clients, state, n) for n in names}
-    if args.dry_run:
-        for n in names:
-            print(f"{n}: конфиг {config_digest(render(configs[n]))}, пользователей {len(users_at(topo, clients, state, n))}")
-        print("dry-run: на серверах ничего не менялось")
-        return 0
-    print("Проверяю доступ по SSH...")
-    dead = []
-    for n in names:
-        reachable, why = Remote(topo.nodes[n]).reachable()
-        print(f"  {n}: {ok('ok') if reachable else bad('нет доступа: ' + why)}")
-        if not reachable:
-            dead.append(n)
-    if dead:
-        print(bad(f"нет доступа к {', '.join(dead)}; для входа по паролю: lerk-vpn bootstrap"))
-        return 1
-    results: list[ApplyResult] = []
-    for n in names:
-        print(f"Сервер {n} ({topo.nodes[n].host})")
-        try:
-            results.append(apply_node(topo, topo.nodes[n], configs[n], log=print))
-        except RemoteError as exc:
-            print(bad(f"{n}: {exc}\n{exc.output}"))
-            print("остановлено: остальные серверы не тронуты")
-            return 1
-    for r in results:
-        print(f"  {r.node}: Xray {r.xray}, конфиг {'обновлён' if r.changed else 'без изменений'}")
-    exported = write_exports(ws, topo, clients, state)
-    print(f"Ссылки клиентов: {ws.out / 'subscriptions'} ({exported})")
-    if args.no_verify:
-        return 0
+    from .ops import run_apply
+
+    code, _ = run_apply(ws, args.node, args.dry_run, log=print)
+    if code or args.dry_run or args.no_verify:
+        return code
     return cmd_verify(argparse.Namespace(chain=None), ws)
 
 
@@ -344,6 +268,33 @@ def cmd_export(args, ws: Workspace) -> int:
     return 0
 
 
+def cmd_web(args, ws: Workspace) -> int:
+    if args.web_action == "set-password":
+        import getpass as gp
+
+        from .web.auth import hash_password
+
+        p1 = gp.getpass("Новый пароль админа: ")
+        if len(p1) < 10:
+            raise SpecError("пароль короче 10 символов")
+        if p1 != gp.getpass("Повторите пароль: "):
+            raise SpecError("пароли не совпали")
+        h = hash_password(p1)
+        if args.env_file:
+            path = Path(args.env_file)
+            lines = [ln for ln in (path.read_text("utf-8").splitlines() if path.exists() else []) if not ln.startswith("LERK_VPN_ADMIN_HASH=")]
+            lines.append(f"LERK_VPN_ADMIN_HASH={h}")
+            path.write_text("\n".join(lines) + "\n", "utf-8")
+            os.chmod(path, 0o600)
+            print(ok(f"хеш записан в {path}; перезапустите службу панели, все входы завершатся"))
+        else:
+            print(h)
+        return 0
+    from .web.app import run
+
+    return run(ws.root, args.host, args.port)
+
+
 def cmd_serve(args, ws: Workspace) -> int:
     ws.load()
     serve(ws.root, args.host, args.port)
@@ -398,6 +349,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("export", help="записать ссылки и подписки в out/")
     s.set_defaults(fn=cmd_export)
+
+    s = sub.add_parser("web", help="веб-панель: run (запуск) или set-password (пароль админа)")
+    s.add_argument("web_action", choices=["run", "set-password"])
+    s.add_argument("--host", default=os.environ.get("LERK_VPN_HOST", "127.0.0.1"))
+    s.add_argument("--port", type=int, default=int(os.environ.get("LERK_VPN_PORT", "8780")))
+    s.add_argument("--env-file", help="для set-password: записать хеш в этот env-файл")
+    s.set_defaults(fn=cmd_web)
 
     s = sub.add_parser("serve", help="отдавать подписки по HTTP (/sub/<токен>)")
     s.add_argument("--host", default="127.0.0.1")

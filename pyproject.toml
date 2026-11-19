@@ -16,3 +16,6 @@ lerk-vpn = "lerk_vpn.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"lerk_vpn.web" = ["static/*"]
