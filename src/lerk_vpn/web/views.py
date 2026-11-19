@@ -599,8 +599,8 @@ def routing_page(ctx) -> str:
 
     def chk(key: str) -> str:
         f = BY_KEY[key]
-        hint = f' <span class="muted">{esc(f.hint)}</span>' if f.hint else ""
-        return f'<label><input type="checkbox" name="{key}" value="1"{" checked" if cur[key] else ""}> {esc(f.label)}{hint}</label>'
+        hint = f'<br><span class="hint">{esc(f.hint)}</span>' if f.hint else ""
+        return f'<label><input type="checkbox" name="{key}" value="1"{" checked" if cur[key] else ""}><span>{esc(f.label)}{hint}</span></label>'
 
     presets = form(
         ctx, "settings_save",
