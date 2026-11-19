@@ -128,3 +128,14 @@ python3 -m unittest discover -s tests -t .
 ## Лицензия
 
 MIT, см. [LICENSE](LICENSE).
+
+
+## Веб-панель
+
+Панель с серверами, каскадами, клиентами, конфигами Happ, маршрутизацией (российский трафик напрямую) и статистикой ставится одной командой:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/LerkOFF/lerk-vpn/main/install.sh | sudo bash -s -- --domain vpn.example.com
+```
+
+Запуск вручную: `lerk-vpn web run`. Подробности, настройки и безопасность в [docs/ADMIN.md](docs/ADMIN.md). Обновление панели делается кнопкой в настройках.
