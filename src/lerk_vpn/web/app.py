@@ -362,6 +362,8 @@ def configure_logging(workdir: Path) -> None:
 def run(workdir: Path, host: str, port: int) -> int:
     login = os.environ.get("LERK_VPN_ADMIN_LOGIN", "admin")
     pw_hash = os.environ.get("LERK_VPN_ADMIN_HASH", "")
+    workdir.mkdir(parents=True, exist_ok=True)
+    workdir.chmod(0o700)
     configure_logging(workdir)
     app = App(workdir, login, pw_hash, secure=os.environ.get("LERK_VPN_SECURE") == "1")
     if not pw_hash:
