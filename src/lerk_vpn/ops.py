@@ -123,6 +123,27 @@ def client_update(ws: Workspace, name: str, *, enabled: bool | None = None, chai
         state.save()
 
 
+def client_rename(ws: Workspace, old: str, new: str) -> None:
+    """Меняет имя клиента; токен подписки и ключи сохраняются, ссылки продолжают работать."""
+    new = new.strip().lower()
+    _check_name("клиент", new)
+    with ws.lock():
+        topo, clients, state = ws.load()
+        client = next((c for c in clients if c.name == old), None)
+        if not client:
+            raise SpecError(f"клиента '{old}' нет")
+        if new == old:
+            return
+        if any(c.name == new for c in clients):
+            raise SpecError(f"клиент '{new}' уже есть")
+        client.name = new
+        if old in state.data["clients"]:
+            state.data["clients"][new] = state.data["clients"].pop(old)
+        save_clients(ws.clients_path, clients)
+        state.ensure(topo, clients)
+        state.save()
+
+
 def client_rotate(ws: Workspace, name: str) -> None:
     with ws.lock():
         topo, clients, state = ws.load()
@@ -211,18 +232,60 @@ def server_add(ws: Workspace, host: str, user: str, password: str, role: str, pu
     return name
 
 
-def server_delete(ws: Workspace, name: str) -> None:
+def chains_of_server(ws: Workspace, name: str) -> list[str]:
+    raw = load_raw(ws.topology_path)
+    return [k for k, c in (raw.get("chains") or {}).items() if name in c.get("path", [])]
+
+
+def server_delete(ws: Workspace, name: str, with_chains: bool = False) -> list[str]:
+    """Убирает сервер из панели. Если он в каскадах, их надо удалить вместе с ним (with_chains).
+    Возвращает удалённые каскады. Сам сервер и Xray на нём не трогаются."""
+    used = chains_of_server(ws, name)
+    if used and not with_chains:
+        raise SpecError(f"сервер входит в каскады {', '.join(used)}: удалите их или выберите «удалить вместе с каскадами»")
+    for chain in used:
+        chain_delete(ws, chain)
     with ws.lock():
         raw = load_raw(ws.topology_path)
         if name not in (raw.get("nodes") or {}):
             raise SpecError(f"сервера '{name}' нет")
-        for chain, c in (raw.get("chains") or {}).items():
-            if name in c.get("path", []):
-                raise SpecError(f"сервер входит в цепочку '{chain}', сначала удалите её")
         del raw["nodes"][name]
         if not raw["nodes"] and not ws.allow_empty:
             raise SpecError("нельзя удалить последний сервер")
         save_raw(ws.topology_path, raw, ws.allow_empty)
+    return used
+
+
+def server_rename(ws: Workspace, old: str, new: str, country: str | None = None) -> None:
+    """Меняет имя сервера (во всех каскадах и в ключах) и при необходимости страну."""
+    new = new.strip().lower()
+    _check_name("сервер", new)
+    with ws.lock():
+        raw = load_raw(ws.topology_path)
+        nodes = raw.get("nodes") or {}
+        if old not in nodes:
+            raise SpecError(f"сервера '{old}' нет")
+        if new != old:
+            if new in nodes:
+                raise SpecError(f"сервер '{new}' уже есть")
+            raw["nodes"] = {(new if k == old else k): v for k, v in nodes.items()}
+            for c in (raw.get("chains") or {}).values():
+                c["path"] = [new if n == old else n for n in c.get("path", [])]
+        if country is not None:
+            cc = country.strip().upper()
+            if cc and not re.match(r"^[A-Z]{2}$", cc):
+                raise SpecError("страна: две буквы, например FI")
+            node = raw["nodes"][new]
+            if cc:
+                node["country"] = cc
+            else:
+                node.pop("country", None)
+        save_raw(ws.topology_path, raw, ws.allow_empty)
+        topo, clients, state = ws.load()
+        if new != old and old in state.data["nodes"]:
+            state.data["nodes"][new] = state.data["nodes"].pop(old)
+        state.ensure(topo, clients)
+        state.save()
 
 
 def server_set_role(ws: Workspace, name: str, role: str) -> None:
@@ -348,6 +411,40 @@ def direct_create(ws: Workspace, node_names: list[str]) -> list[str]:
             raise SpecError("прямой доступ на выбранных серверах уже есть")
         save_raw(ws.topology_path, raw, ws.allow_empty)
     return created
+
+
+def chain_edit(ws: Workspace, name: str, title: str, new_name: str | None = None) -> str:
+    """Название каскада (видно клиенту в Happ) и, при желании, его идентификатор. Возвращает итоговое имя."""
+    title = title.strip()[:40]
+    if not title:
+        raise SpecError("название не может быть пустым")
+    new_name = (new_name or name).strip().lower()
+    _check_name("цепочка", new_name)
+    with ws.lock():
+        raw = load_raw(ws.topology_path)
+        chains = raw.get("chains") or {}
+        if name not in chains:
+            raise SpecError(f"цепочки '{name}' нет")
+        if new_name != name and new_name in chains:
+            raise SpecError(f"цепочка '{new_name}' уже есть")
+        chains[name]["title"] = title
+        if new_name != name:
+            raw["chains"] = {(new_name if k == name else k): v for k, v in chains.items()}
+        save_raw(ws.topology_path, raw, ws.allow_empty)
+        if new_name != name:
+            clients = load_clients_lenient(ws)
+            for c in clients:
+                c.chains = [new_name if x == name else x for x in c.chains]
+            save_clients(ws.clients_path, clients)
+            topo, clients2, state = ws.load()
+            for key in [k for k in state.data["hops"] if k.startswith(name + "/")]:
+                state.data["hops"][f"{new_name}/{key.split('/', 1)[1]}"] = state.data["hops"].pop(key)
+            for item in state.data["clients"].values():
+                if name in item.get("uuids", {}):
+                    item["uuids"][new_name] = item["uuids"].pop(name)
+            state.ensure(topo, clients2)
+            state.save()
+    return new_name
 
 
 def chain_delete(ws: Workspace, name: str) -> None:
