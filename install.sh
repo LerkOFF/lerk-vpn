@@ -37,11 +37,15 @@ command -v apt-get >/dev/null || { echo "нужен Debian или Ubuntu (apt-ge
 
 say "пакеты"
 export DEBIAN_FRONTEND=noninteractive
-PKGS="python3 git curl openssh-client openssl ca-certificates"
-[ -n "$DOMAIN" ] && [ "$NGINX" = 1 ] && PKGS="$PKGS nginx"
-[ -n "$DOMAIN" ] && [ "$NGINX" = 1 ] && [ "$TLS" = 1 ] && PKGS="$PKGS certbot"
-apt-get update -qq
-apt-get install -y -qq $PKGS >/dev/null
+need=""
+want() { command -v "$1" >/dev/null 2>&1 || need="$need $2"; }
+want python3 python3; want git git; want curl curl; want ssh openssh-client; want openssl openssl
+[ -n "$DOMAIN" ] && [ "$NGINX" = 1 ] && want nginx nginx
+[ -n "$DOMAIN" ] && [ "$NGINX" = 1 ] && [ "$TLS" = 1 ] && want certbot certbot
+if [ -n "$need" ]; then
+  apt-get update -qq || true
+  apt-get install -y -qq $need >/dev/null || { apt-get update -qq; apt-get install -y -qq --fix-missing $need >/dev/null; }
+fi
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' || { echo "нужен Python 3.11 или новее" >&2; exit 1; }
 
 say "пользователь и папки"
