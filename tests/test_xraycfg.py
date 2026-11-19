@@ -35,8 +35,9 @@ class ConfigTests(unittest.TestCase):
     def test_exit_routes_to_direct_and_blocks_private(self):
         cfg = build_node_config(self.topo, self.clients, self.state, "fr1")
         rules = cfg["routing"]["rules"]
-        self.assertEqual(rules[0]["outboundTag"], "block")
-        self.assertEqual(rules[0]["ip"], ["geoip:private"])
+        self.assertEqual(rules[0]["outboundTag"], "api")
+        self.assertEqual(rules[1]["outboundTag"], "block")
+        self.assertEqual(rules[1]["ip"], ["geoip:private"])
         by_tag = {tuple(r.get("user", [])): r["outboundTag"] for r in rules if "user" in r}
         self.assertEqual(by_tag[("h.main.0",)], "direct")
         self.assertEqual(by_tag[("h.triple.1",)], "direct")
@@ -84,3 +85,14 @@ class ConfigTests(unittest.TestCase):
         before = dict(self.state.data["nodes"]["fi1"])
         self.state.ensure(self.topo, self.clients)
         self.assertEqual(before, self.state.data["nodes"]["fi1"])
+
+
+class StatsTests(unittest.TestCase):
+    def test_stats_api_is_local_only(self):
+        topo, clients, state = make()
+        cfg = build_node_config(topo, clients, state, "fi1")
+        api = next(i for i in cfg["inbounds"] if i["tag"] == "api-in")
+        self.assertEqual(api["listen"], "127.0.0.1")
+        self.assertEqual(cfg["api"]["services"], ["StatsService"])
+        self.assertTrue(cfg["policy"]["levels"]["0"]["statsUserDownlink"])
+        self.assertEqual(cfg["routing"]["rules"][0]["inboundTag"], ["api-in"])

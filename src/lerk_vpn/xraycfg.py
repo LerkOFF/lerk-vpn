@@ -15,6 +15,8 @@ from .state import State
 
 FLOW = "xtls-rprx-vision"
 INBOUND_TAG = "in"
+API_TAG = "api"
+API_PORT = 10085
 
 
 def client_email(chain: str, client: str) -> str:
@@ -126,9 +128,21 @@ def build_node_config(topo: Topology, clients: list[Client], state: State, node_
             )
         rules.append({"type": "field", "inboundTag": [INBOUND_TAG], "user": emails, "outboundTag": target})
 
+    # локальный API статистики: панель снимает трафик по клиентам, наружу порт не открыт
+    api_inbound = {
+        "tag": "api-in",
+        "listen": "127.0.0.1",
+        "port": API_PORT,
+        "protocol": "dokodemo-door",
+        "settings": {"address": "127.0.0.1"},
+    }
+    rules.insert(0, {"type": "field", "inboundTag": ["api-in"], "outboundTag": API_TAG})
     return {
         "log": {"loglevel": "warning"},
-        "inbounds": [inbound],
+        "stats": {},
+        "api": {"tag": API_TAG, "services": ["StatsService"]},
+        "policy": {"levels": {"0": {"statsUserUplink": True, "statsUserDownlink": True}}},
+        "inbounds": [inbound, api_inbound],
         "outbounds": outbounds,
         "routing": {"domainStrategy": "AsIs", "rules": rules},
     }

@@ -249,3 +249,45 @@ def verify_chain(topo: Topology, state, chain, client_name: str, log=print) -> t
             got = line[3:]
     ok = "verdict=ok" in res.out
     return ok, got
+
+
+STATS_MARK = "---STATS---"
+
+
+def collect_script(port: int) -> str:
+    from .xraycfg import API_PORT
+
+    return status_script(port) + f"""
+echo {STATS_MARK}
+xray api statsquery --server=127.0.0.1:{API_PORT} -reset 2>/dev/null || true
+"""
+
+
+def parse_stats(text: str) -> dict[str, dict[str, int]]:
+    """{email: {"up": байт, "down": байт}} из вывода xray api statsquery."""
+    try:
+        data = json.loads(text) if text.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+    result: dict[str, dict[str, int]] = {}
+    for item in data.get("stat", []) or []:
+        parts = str(item.get("name", "")).split(">>>")
+        if len(parts) == 4 and parts[0] == "user" and parts[2] == "traffic":
+            slot = result.setdefault(parts[1], {"up": 0, "down": 0})
+            slot["up" if parts[3] == "uplink" else "down"] += int(item.get("value", 0) or 0)
+    return result
+
+
+def node_collect(node: Node) -> tuple[dict, dict[str, dict[str, int]]]:
+    res = Remote(node).run(collect_script(node.port), timeout=90)
+    head, _, tail = res.out.partition(STATS_MARK)
+    data = {}
+    for line in head.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            data[k] = v
+    try:
+        data["marker"] = json.loads(data["marker"]) if data.get("marker") else {}
+    except json.JSONDecodeError:
+        data["marker"] = {}
+    return data, parse_stats(tail)
