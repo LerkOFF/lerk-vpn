@@ -247,3 +247,24 @@ a.btn{margin:0 8px 8px 0}
 .card a.btn+a.btn,.card .btn+.btn{margin-top:0}
 .form .row .btn{align-self:end}
 .kv+.form,.kv+form{margin-top:var(--s3)}
+
+td.nw{white-space:nowrap}
+.cols{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.tile svg.spark{width:100%;height:38px}
+
+@media (max-width:900px){
+  .nav a{overflow:hidden;font-size:10px;padding:6px 2px}
+  .nav a span.t{overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .top kbd{display:none}
+  .top input[type=search]{padding-right:12px}
+}
+.checks.stackv{gap:6px}
+.checks.stackv label,.checks.stackv label:has(input:checked){background:none;border-color:transparent;padding:4px 2px}
+.form label .hint{font-weight:400}
+.form .cols label{align-content:start}
+@media (max-width:900px){
+  .nav{justify-content:flex-start;overflow-x:auto}
+  .nav a{flex:0 0 auto;min-width:62px;font-size:10.5px;padding:6px 8px}
+  .nav a span.t{overflow:visible;text-overflow:clip}
+}
+.fields label.changed{box-shadow:none;border-left:3px solid var(--warn);padding-left:12px;border-radius:2px}

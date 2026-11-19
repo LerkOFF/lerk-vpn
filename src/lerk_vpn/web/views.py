@@ -382,6 +382,13 @@ def servers_page(ctx) -> str:
         edit_blocks.append(
             f'<details><summary><strong>{esc(name)}</strong> · {esc(n.host)} · порт {n.port} · SNI {esc(n.sni)}{" · mux" if n.mux else ""}</summary>'
             + form(
+                ctx, "server_rename",
+                f'<input type="hidden" name="name" value="{esc(name)}"><h3>Имя и страна</h3><div class="row">'
+                f'<label>Имя<input type="text" name="new_name" value="{esc(name)}" required pattern="[a-z0-9][a-z0-9_-]{{0,31}}"></label>'
+                f'<label>Страна (две буквы)<input type="text" name="country" value="{esc(n.country)}" maxlength="2" placeholder="FI"></label>'
+                '<button class="btn ghost" type="submit">Сохранить</button></div><p class="hint">Имя меняется во всех каскадах и ключах. После сохранения нажмите «Применить».</p>',
+            )
+            + form(
                 ctx, "server_edit",
                 f'<input type="hidden" name="name" value="{esc(name)}">'
                 '<div class="row">'
@@ -401,18 +408,6 @@ def servers_page(ctx) -> str:
                 f'<label><input type="checkbox" name="firewall" value="1"{" checked" if n.firewall else ""}> Настроить файрвол ufw (открыть SSH и порт Xray)</label></div>'
                 '<div><button class="btn" type="submit">Сохранить параметры</button></div>'
                 '<p class="hint">Mux работает только без flow. Смена порта или SNI меняет ссылки клиентов: после «Применить» клиентам нужно обновить подписку в Happ.</p>',
-            )
-            + "</details>"
-        )
-    for name, n in topo.nodes.items():
-        edit_blocks.append(
-            f'<details><summary>Имя и страна: <strong>{esc(name)}</strong></summary>'
-            + form(
-                ctx, "server_rename",
-                f'<input type="hidden" name="name" value="{esc(name)}"><div class="row">'
-                f'<label>Имя<input type="text" name="new_name" value="{esc(name)}" required pattern="[a-z0-9][a-z0-9_-]{{0,31}}"></label>'
-                f'<label>Страна (две буквы)<input type="text" name="country" value="{esc(n.country)}" maxlength="2" placeholder="FI"></label>'
-                '<button class="btn ghost" type="submit">Сохранить</button></div><p class="hint">Имя меняется во всех каскадах и ключах. После сохранения нажмите «Применить».</p>',
             )
             + "</details>"
         )
@@ -567,7 +562,7 @@ def settings_page(ctx) -> str:
             v = cur[f.key]
             changed = v != f.default
             cls = ' class="changed"' if changed else ""
-            was = f'<span class="hint">по умолчанию: {esc(("вкл" if f.default else "выкл") if f.kind == "bool" else f.default)}</span>' if changed else ""
+            was = f'<span class="hint">по умолчанию: {esc(("вкл" if f.default else "выкл") if f.kind == "bool" else (f.default if f.default != "" else "пусто"))}</span>' if changed else ""
             if f.kind == "bool":
                 inp = f'<input type="checkbox" name="{esc(f.key)}" value="1"{" checked" if v else ""}>'
                 fields_html.append(f"<label{cls}><span>{inp} {esc(f.label)}</span>{was}</label>")
