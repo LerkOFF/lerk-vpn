@@ -546,7 +546,7 @@ def settings_page(ctx) -> str:
                 attrs = f' min="{f.lo}" max="{f.hi}"' if f.kind == "int" else f' maxlength="{f.hi}"'
                 hint = f'<span class="hint">{esc(f.hint)}</span>' if f.hint else ""
                 fields_html.append(f'<label{cls}>{esc(f.label)}<input type="{typ}" name="{esc(f.key)}" value="{esc(v)}"{attrs}>{hint}{was}</label>')
-        groups_html.append(block(gkey, glabel, "".join(fields_html)))
+        groups_html.append(block(gkey, glabel, '<div class="fields">' + "".join(fields_html) + "</div>"))
     updates = updates_block(ctx)
     body_form = form(ctx, "settings_save", f'<input type="hidden" name="_scope" value="{",".join(g for g in GROUPS if g != "routing")}"><div class="cols" data-sortable="settings">{"".join(groups_html)}</div><div><button class="btn" type="submit">Сохранить настройки</button></div>')
     log = ctx.db.q("SELECT ts,key,old,new,ip FROM settings_log ORDER BY id DESC LIMIT 30")

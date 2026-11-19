@@ -212,3 +212,38 @@ ul{padding-left:20px;margin:0 0 var(--s3)}
 .checks.stackv{flex-direction:column;gap:2px}
 .form+.tablewrap,.form+.empty{margin-top:var(--s4)}
 td.num{font-variant-numeric:tabular-nums}
+
+/* форма нужной темы для нативных элементов, отступы между блоками страницы */
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+.main>*+*{margin-top:var(--s4)}
+.main>.top+*,.main>h1+*,.main>.flash+*,.main>.tabs+*{margin-top:0}
+.main>h1+.tabs{margin-top:var(--s3)}
+.main>p{margin-bottom:0}
+.fields{display:grid;gap:var(--s4)}
+.fields label,.card>label{display:grid;gap:6px;font-size:12.5px;color:var(--muted);font-weight:550}
+.fields label>span:not(.hint){display:flex;align-items:center;gap:8px;color:var(--text);font-size:14px;font-weight:500}
+.fields label.changed{background:none;box-shadow:-10px 0 0 -7px var(--warn)}
+.fields .hint{font-weight:400}
+.fields label:has(input[type=checkbox]){padding:2px 0}
+form.inline{display:inline-flex;margin:0 6px 6px 0;vertical-align:middle}
+td form.inline{margin:0 4px 0 0}
+p>form.inline:last-child{margin-right:0}
+.card>p:last-child,.card>.form:last-child{margin-bottom:0}
+.card>*+h2,.card>*+h3{margin-top:var(--s4)}
+.card>.form+.form,.card>form+form,.card>p+form,.card>.tablewrap+p,.card>table+p,.card>p+.tablewrap{margin-top:var(--s4)}
+.stack>.card{margin:0}
+.logo svg{fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.main>*+*{margin-top:var(--s5)}
+.main>.top+*,.main>h1+*,.main>.flash+*,.main>.tabs+*{margin-top:0}
+.main>h1+.tabs{margin-top:var(--s3)}
+.main>.form{gap:var(--s6)}
+.cols{align-items:stretch}
+.btn+.btn,form.inline+form.inline{margin-left:0}
+.card .btn{white-space:nowrap}
+.card>.form>div>.btn:only-child{margin-top:var(--s2)}
+.qrbox{color-scheme:only light;background:#fff!important;isolation:isolate}
+a.btn{margin:0 8px 8px 0}
+.card a.btn+a.btn,.card .btn+.btn{margin-top:0}
+.form .row .btn{align-self:end}
+.kv+.form,.kv+form{margin-top:var(--s3)}
