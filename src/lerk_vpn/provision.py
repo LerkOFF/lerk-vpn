@@ -220,7 +220,6 @@ def _resolve(host: str) -> str:
 
 def verify_chain(topo: Topology, state, chain, client_name: str, log=print) -> tuple[bool, str]:
     """Поднимает на последнем сервере цепочки временного клиента и смотрит, с каким IP он выходит в сеть."""
-    from .xraycfg import FLOW
 
     entry = topo.nodes[chain.entry]
     last = topo.nodes[chain.exit]
@@ -232,7 +231,7 @@ def verify_chain(topo: Topology, state, chain, client_name: str, log=print) -> t
         "outbounds": [
             {
                 "protocol": "vless",
-                "settings": {"vnext": [{"address": entry.host, "port": entry.port, "users": [{"id": state.client_uuid(client_name, chain.name), "encryption": "none", "flow": FLOW}]}]},
+                "settings": {"vnext": [{"address": entry.host, "port": entry.port, "users": [{"id": state.client_uuid(client_name, chain.name), "encryption": "none", "flow": entry.flow}]}]},
                 "streamSettings": {
                     "network": "tcp",
                     "security": "reality",

@@ -96,3 +96,27 @@ class StatsTests(unittest.TestCase):
         self.assertEqual(cfg["api"]["services"], ["StatsService"])
         self.assertTrue(cfg["policy"]["levels"]["0"]["statsUserDownlink"])
         self.assertEqual(cfg["routing"]["rules"][0]["inboundTag"], ["api-in"])
+
+
+class FlowMuxTests(unittest.TestCase):
+    def test_mux_on_hop_without_flow(self):
+        from lerk_vpn.model import parse_topology
+        from lerk_vpn.xraycfg import build_node_config, client_links
+
+        topo = parse_topology({"nodes": {"a": {"host": "203.0.113.1"}, "b": {"host": "203.0.113.2", "flow": "", "mux": True, "mux_concurrency": 16, "port": 8443}}, "chains": {"c": {"path": ["a", "b"]}}})
+        import tempfile
+        from pathlib import Path
+        from lerk_vpn.model import Client
+        from lerk_vpn.state import State
+
+        clients = [Client("ann", ["c"])]
+        st = State(Path(tempfile.mkdtemp()) / "s.json")
+        st.ensure(topo, clients)
+        cfg = build_node_config(topo, clients, st, "a")
+        hop = next(o for o in cfg["outbounds"] if o["tag"].startswith("to."))
+        self.assertEqual(hop["mux"], {"enabled": True, "concurrency": 16})
+        self.assertEqual(hop["settings"]["vnext"][0]["port"], 8443)
+        self.assertEqual(hop["settings"]["vnext"][0]["users"][0]["flow"], "")
+        self.assertIn("flow=xtls-rprx-vision", client_links(topo, st, clients[0])[0])
+        topo2 = parse_topology({"nodes": {"a": {"host": "203.0.113.1", "flow": "", "port": 2053}}, "chains": {"c": {"path": ["a"]}}})
+        self.assertNotIn("flow=", client_links(topo2, st, clients[0])[0])

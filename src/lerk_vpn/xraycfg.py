@@ -62,7 +62,7 @@ def build_node_config(topo: Topology, clients: list[Client], state: State, node_
         "port": node.port,
         "protocol": "vless",
         "settings": {
-            "clients": [{"id": uid, "flow": FLOW, "email": email} for _, email, uid in users],
+            "clients": [{"id": uid, "flow": node.flow, "email": email} for _, email, uid in users],
             "decryption": "none",
         },
         "streamSettings": {
@@ -100,7 +100,7 @@ def build_node_config(topo: Topology, clients: list[Client], state: State, node_
             target = outbound_tag(chain.name)
             nxt = topo.nodes[chain.path[pos + 1]]
             nxt_keys = state.node(nxt.name)
-            outbounds.append(
+            out = (
                 {
                     "tag": target,
                     "protocol": "vless",
@@ -109,7 +109,7 @@ def build_node_config(topo: Topology, clients: list[Client], state: State, node_
                             {
                                 "address": nxt.host,
                                 "port": nxt.port,
-                                "users": [{"id": state.hop_uuid(chain.name, pos), "encryption": "none", "flow": FLOW}],
+                                "users": [{"id": state.hop_uuid(chain.name, pos), "encryption": "none", "flow": nxt.flow}],
                             }
                         ]
                     },
@@ -126,6 +126,9 @@ def build_node_config(topo: Topology, clients: list[Client], state: State, node_
                     },
                 }
             )
+            if nxt.mux:
+                out["mux"] = {"enabled": True, "concurrency": nxt.mux_concurrency}
+            outbounds.append(out)
         rules.append({"type": "field", "inboundTag": [INBOUND_TAG], "user": emails, "outboundTag": target})
 
     # локальный API статистики: панель снимает трафик по клиентам, наружу порт не открыт
@@ -156,7 +159,7 @@ def vless_link(topo: Topology, state: State, chain: Chain, client: str) -> str:
         host = f"[{host}]"
     remark = quote(f"{chain.title}-{client}", safe="")
     params = (
-        f"encryption=none&flow={FLOW}&security=reality&sni={entry.sni}&fp={entry.fingerprint}"
+        f"encryption=none{'&flow=' + entry.flow if entry.flow else ''}&security=reality&sni={entry.sni}&fp={entry.fingerprint}"
         f"&pbk={keys['public_key']}&sid={keys['short_id']}&type=tcp&headerType=none"
     )
     return f"vless://{state.client_uuid(client, chain.name)}@{host}:{entry.port}?{params}#{remark}"

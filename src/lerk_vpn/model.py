@@ -24,7 +24,11 @@ NODE_DEFAULTS = {
     "firewall": False,
     "block_torrents": True,
     "fingerprint": "chrome",
+    "flow": "xtls-rprx-vision",
+    "mux": False,
+    "mux_concurrency": 8,
 }
+FLOWS = {"xtls-rprx-vision", ""}
 
 
 class SpecError(ValueError):
@@ -47,6 +51,9 @@ class Node:
     firewall: bool
     block_torrents: bool
     fingerprint: str
+    flow: str
+    mux: bool
+    mux_concurrency: int
     password_env: str | None
     role: str = ""
 
@@ -133,6 +140,12 @@ def parse_topology(data: dict, allow_empty: bool = False) -> Topology:
         fp = str(merged["fingerprint"])
         if fp not in FINGERPRINTS:
             raise SpecError(f"nodes.{name}.fingerprint: одно из {sorted(FINGERPRINTS)}")
+        flow = str(merged["flow"])
+        if flow not in FLOWS:
+            raise SpecError(f"nodes.{name}.flow: xtls-rprx-vision или пусто (без flow)")
+        mux = _bool(f"nodes.{name}.mux", merged["mux"])
+        if mux and flow:
+            raise SpecError(f"nodes.{name}: мультиплексирование (mux) работает только без flow, уберите xtls-rprx-vision")
         penv = merged.get("password_env")
         if penv is not None and not re.match(r"^[A-Z_][A-Z0-9_]*$", str(penv)):
             raise SpecError(f"nodes.{name}.password_env: имя переменной окружения")
@@ -157,6 +170,9 @@ def parse_topology(data: dict, allow_empty: bool = False) -> Topology:
             firewall=_bool(f"nodes.{name}.firewall", merged["firewall"]),
             block_torrents=_bool(f"nodes.{name}.block_torrents", merged["block_torrents"]),
             fingerprint=fp,
+            flow=flow,
+            mux=mux,
+            mux_concurrency=_int(f"nodes.{name}.mux_concurrency", merged["mux_concurrency"], 1, 1024),
             password_env=str(penv) if penv else None,
             role=role,
         )
