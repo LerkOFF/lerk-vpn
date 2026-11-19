@@ -11,6 +11,7 @@ from pathlib import Path
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.:_-]*[A-Za-z0-9])?$")
 SNI_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")
+ROLES = {"", "entry", "exit"}
 FINGERPRINTS = {"chrome", "firefox", "safari", "ios", "android", "edge", "360", "qq", "random", "randomized"}
 
 NODE_DEFAULTS = {
@@ -47,6 +48,7 @@ class Node:
     block_torrents: bool
     fingerprint: str
     password_env: str | None
+    role: str = ""
 
 
 @dataclass(frozen=True)
@@ -98,7 +100,7 @@ def _bool(where: str, value) -> bool:
     return value
 
 
-def parse_topology(data: dict) -> Topology:
+def parse_topology(data: dict, allow_empty: bool = False) -> Topology:
     project = _check_name("project", data.get("project", "main"))
     defaults = {**NODE_DEFAULTS, **(data.get("defaults") or {})}
     unknown_def = set(defaults) - set(NODE_DEFAULTS)
@@ -106,10 +108,10 @@ def parse_topology(data: dict) -> Topology:
         raise SpecError(f"[defaults]: неизвестные ключи {sorted(unknown_def)}")
 
     raw_nodes = data.get("nodes") or {}
-    if not raw_nodes:
+    if not raw_nodes and not allow_empty:
         raise SpecError("нужен хотя бы один сервер в [nodes.<имя>]")
     nodes: dict[str, Node] = {}
-    allowed = set(NODE_DEFAULTS) | {"host", "public_host", "ssh", "country", "password_env"}
+    allowed = set(NODE_DEFAULTS) | {"host", "public_host", "ssh", "country", "password_env", "role"}
     for name, raw in raw_nodes.items():
         _check_name("сервер", name)
         extra = set(raw) - allowed
@@ -134,6 +136,9 @@ def parse_topology(data: dict) -> Topology:
         penv = merged.get("password_env")
         if penv is not None and not re.match(r"^[A-Z_][A-Z0-9_]*$", str(penv)):
             raise SpecError(f"nodes.{name}.password_env: имя переменной окружения")
+        role = str(merged.get("role", "") or "")
+        if role not in ROLES:
+            raise SpecError(f"nodes.{name}.role: пусто, entry (сервер 1) или exit (сервер 2)")
         user = str(merged["ssh_user"])
         if not re.match(r"^[a-z_][a-z0-9_-]*$", user):
             raise SpecError(f"nodes.{name}.ssh_user: некорректный логин")
@@ -153,6 +158,7 @@ def parse_topology(data: dict) -> Topology:
             block_torrents=_bool(f"nodes.{name}.block_torrents", merged["block_torrents"]),
             fingerprint=fp,
             password_env=str(penv) if penv else None,
+            role=role,
         )
 
     hosts: dict[str, str] = {}
@@ -162,7 +168,7 @@ def parse_topology(data: dict) -> Topology:
         hosts[n.host] = n.name
 
     raw_chains = data.get("chains") or {}
-    if not raw_chains:
+    if not raw_chains and not allow_empty:
         raise SpecError("нужна хотя бы одна цепочка в [chains.<имя>]")
     chains: dict[str, Chain] = {}
     for name, raw in raw_chains.items():
@@ -186,7 +192,7 @@ def parse_topology(data: dict) -> Topology:
     return Topology(project=project, nodes=nodes, chains=chains, xray_version=str(version) if version else None)
 
 
-def load_topology(path: Path) -> Topology:
+def load_topology(path: Path, allow_empty: bool = False) -> Topology:
     try:
         with open(path, "rb") as fh:
             data = tomllib.load(fh)
@@ -194,7 +200,7 @@ def load_topology(path: Path) -> Topology:
         raise SpecError(f"нет файла {path}; создайте рабочую папку командой: lerk-vpn init") from None
     except tomllib.TOMLDecodeError as exc:
         raise SpecError(f"{path}: {exc}") from None
-    return parse_topology(data)
+    return parse_topology(data, allow_empty)
 
 
 def load_clients(path: Path, topo: Topology) -> list[Client]:
