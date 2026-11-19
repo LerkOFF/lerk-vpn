@@ -55,7 +55,7 @@ def _asset_version() -> str:
 ASSET_V = _asset_version()
 
 
-SHORT = {"happ": "Happ", "routing": "Маршруты", "servers": "Серверы", "settings": "Настройки"}
+SHORT = {"happ": "Happ", "routing": "Правила", "servers": "Серверы", "settings": "Опции"}
 
 
 def esc(v) -> str:
@@ -90,7 +90,7 @@ def layout(ctx, page: str, title: str, body: str, counts: dict | None = None) ->
 <div class="side-foot"><span class="who"><span class="avatar">{esc((ctx.actor or 'a')[:1].upper())}</span>{esc(ctx.actor)}</span></div></aside>
 <main class="main"><div class="top">
 <form class="search" method="get" action="/"><input type="hidden" name="p" value="search">{icon('search')}
-<label class="sr" for="q">Поиск</label><input id="q" type="search" name="q" placeholder="Поиск клиента, сервера, каскада" autocomplete="off"><kbd>/</kbd></form><span class="sp"></span>
+<label class="sr" for="q">Поиск</label><input id="q" type="search" name="q" placeholder="Поиск" autocomplete="off"><kbd>/</kbd></form><span class="sp"></span>
 <button class="iconbtn theme" id="theme" type="button" aria-label="Сменить тему" title="Тема">{icon('sun','sun')}{icon('moon','moon')}</button>
 <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="{esc(ctx.csrf)}"><button class="iconbtn" type="submit" aria-label="Выйти" title="Выйти">{icon('logout')}</button></form></div>
 {flash}{body}</main></div></body></html>"""
@@ -197,7 +197,14 @@ def table(header: list[str], rows: list[list[str]], num: set[int] | None = None,
     if not rows:
         return f'<div class="empty">{esc(empty)}</div>'
     head = "".join(f'<th class="{"num" if i in num else ""}">{esc(h)}</th>' for i, h in enumerate(header))
-    body = "".join("<tr>" + "".join(f'<td class="{"num" if i in num else ""}">{c}</td>' for i, c in enumerate(r)) + "</tr>" for r in rows)
+    import re as _re
+
+    def cell(i: int, c: str) -> str:
+        short = len(_re.sub(r"<[^>]*>", "", str(c))) <= 30
+        cls = ("num " if i in num else "") + ("nw" if short else "")
+        return f'<td class="{cls.strip()}">{c}</td>'
+
+    body = "".join("<tr>" + "".join(cell(i, c) for i, c in enumerate(r)) + "</tr>" for r in rows)
     return f'<div class="tablewrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
