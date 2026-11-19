@@ -1,0 +1,32 @@
+# Описание серверов и цепочек. Менять руками, затем: lerk-vpn plan, lerk-vpn apply.
+project = "main"
+
+# xray_version = "26.11.9"   # закрепить версию Xray; без строки ставится последняя
+
+[defaults]            # значения для всех серверов, любое можно переопределить в сервере
+ssh_user = "root"
+ssh_port = 22
+port = 443            # порт входа Xray на сервере
+sni = "dl.google.com" # сайт, под который маскируется Reality (должен отдавать TLS 1.3)
+swap_gb = 4           # 0 = не трогать swap
+bbr = true
+firewall = false      # true = поставить ufw и открыть только ssh и порт Xray
+block_torrents = true # на выходных серверах резать торренты
+
+[nodes.fi1]
+host = "203.0.113.10"
+country = "FI"
+# ssh = "my-alias"             # алиас из ~/.ssh/config вместо host/ssh_user/ssh_port
+# public_host = "fi.example.com"  # что писать в ссылках клиентов, по умолчанию host
+# password_env = "FI1_PASSWORD"   # переменная с паролем root, только для lerk-vpn bootstrap
+
+[nodes.fr1]
+host = "203.0.113.20"
+country = "FR"
+sni = "www.cloudflare.com"
+
+# Цепочка: первый сервер принимает клиентов, последний выпускает в интернет.
+# Один сервер: path = ["fi1"]. Три звена: path = ["fi1", "de1", "fr1"].
+[chains.main]
+path = ["fi1", "fr1"]
+title = "FI-FR"

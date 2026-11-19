@@ -1,0 +1,34 @@
+# Пример с несколькими цепочками на общих серверах.
+# Клиент может получать сразу несколько цепочек: в приложении будет несколько профилей.
+project = "shop"
+
+[defaults]
+swap_gb = 4
+firewall = true
+
+[nodes.ru-gate]          # входной сервер, доступный из сети клиента
+host = "203.0.113.10"
+country = "RU"
+public_host = "gate.example.com"
+
+[nodes.de1]
+host = "203.0.113.20"
+country = "DE"
+sni = "www.cloudflare.com"
+
+[nodes.nl1]
+host = "203.0.113.30"
+country = "NL"
+sni = "addons.mozilla.org"
+
+[chains.de]
+path = ["ru-gate", "de1"]
+title = "DE"
+
+[chains.nl]
+path = ["ru-gate", "nl1"]
+title = "NL"
+
+[chains.double]          # тройной каскад
+path = ["ru-gate", "de1", "nl1"]
+title = "DE-NL"

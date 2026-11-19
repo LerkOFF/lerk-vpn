@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+.venv/
+build/
+dist/
+# рабочие каталоги с реальными данными (ключи, UUID клиентов, ссылки)
+workspace/
+*/state.json
+state.json
+out/
+clients.json
+topology.toml
+!examples/*
